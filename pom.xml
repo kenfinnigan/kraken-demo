@@ -59,5 +59,6 @@
 
     <modules>
         <module>twitter</module>
+        <module>maps</module>
     </modules>
 </project>

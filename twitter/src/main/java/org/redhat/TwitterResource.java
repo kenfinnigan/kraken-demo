@@ -50,10 +50,14 @@ public class TwitterResource {
     public String register(@FormParam("handle") String handle) throws TwitterException {
         TwitterUser twitterUser = TwitterUser.find("handle", handle).firstResult();
         if(twitterUser == null) {
-            User user = twitter.users().lookupUsers(handle).get(0);
-            twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.getMiniProfileImageURLHttps());
-            twitterUser.persist();
-            fireKafkaEvent(twitterUser);
+            try {
+                User user = twitter.users().lookupUsers(handle).get(0);
+                twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.getMiniProfileImageURLHttps());
+                twitterUser.persist();
+                fireKafkaEvent(twitterUser);
+            } catch (TwitterException e) {
+                return "No record found by that name.";
+            }
         }
         return String.format("welcome %s from %s", twitterUser.fullName, twitterUser.location);
     }
