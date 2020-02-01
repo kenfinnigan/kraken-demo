@@ -4,6 +4,15 @@ This project uses Quarkus, the Supersonic Subatomic Java Framework.
 
 If you want to learn more about Quarkus, please visit its website: https://quarkus.io/ .
 
+## Running PostgreSQL Database
+
+```
+docker run --ulimit memlock=-1:-1 -it --rm=true --memory-swappiness=0 \
+           --name postgres-quarkus-hibernate -e POSTGRES_USER=quarkus_test \
+           -e POSTGRES_PASSWORD=quarkus_test -e POSTGRES_DB=quarkus_test \
+           -p 5432:5432 postgres:10.5
+```
+
 ## Running the application in dev mode
 
 You can run your application in dev mode that enables live coding using:
