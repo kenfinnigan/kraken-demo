@@ -9,7 +9,7 @@ public class TwitterUser extends PanacheEntity {
     public String handle;
     public String fullName;
     public String location;
-    private String miniProfileImageUrl;
+    public String miniProfileImageUrl;
 
     public TwitterUser() {
     }

@@ -1,11 +1,11 @@
 package org.redhat;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import com.kennycason.kumo.CollisionMode;
+import com.kennycason.kumo.WordCloud;
+import com.kennycason.kumo.WordFrequency;
+import com.kennycason.kumo.bg.RectangleBackground;
+import io.reactivex.Emitter;
 import io.smallrye.reactive.messaging.annotations.Channel;
-import io.smallrye.reactive.messaging.annotations.Emitter;
-import twitter4j.Query;
-import twitter4j.ResponseList;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
@@ -21,6 +21,18 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.ResponseBuilder;
+import java.awt.Dimension;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Path("/twitter")
 public class TwitterResource {
@@ -30,12 +42,12 @@ public class TwitterResource {
 
     Twitter twitter;
 
-    @Inject
-    @Channel("twitter")
-    Emitter<TwitterUser> twitterUserEmitter;
+//    @Inject
+//    @Channel("twitter")
+//    Emitter<TwitterUser> twitterUserEmitter;
 
     @PostConstruct
-    private void setup() {
+    public void setup() {
         ConfigurationBuilder cb = new ConfigurationBuilder()
                                       .setDebugEnabled(true)
                                       .setOAuthConsumerKey(krakenConfig.apiKey())
@@ -49,19 +61,80 @@ public class TwitterResource {
     @POST
     @Transactional
     @Produces(MediaType.TEXT_PLAIN)
-    public String register(@FormParam("handle") String handle) throws TwitterException {
+    public String register(@FormParam("handle") String handle) {
         TwitterUser twitterUser = TwitterUser.find("handle", handle).firstResult();
-        if(twitterUser == null) {
+        if (twitterUser == null) {
             try {
                 User user = twitter.users().lookupUsers(handle).get(0);
                 twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.getMiniProfileImageURLHttps());
                 twitterUser.persist();
                 //TODO Setup reactive messaging config for Kafka
-//                twitterUserEmitter.send(twitterUser);
+                //                twitterUserEmitter.send(twitterUser);
             } catch (TwitterException e) {
                 return "No record found by that name.";
             }
         }
         return String.format("welcome %s from %s", twitterUser.fullName, twitterUser.location);
     }
+
+    @GET
+    @Path("speakers")
+    @Transactional
+    @Produces(MediaType.TEXT_PLAIN)
+    public String loadSpeakers() throws IOException {
+        try (InputStream stream = getClass().getResourceAsStream("/speakers.csv");
+             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream));) {
+            while (bufferedReader.ready()) {
+                String line = bufferedReader.readLine();
+                String[] values = line.split(",");
+                if (values.length > 2) {
+                    String handle = values[2];
+                    TwitterUser twitterUser = TwitterUser.find("handle", handle).firstResult();
+                    if (twitterUser == null) {
+                        try {
+                            User user = twitter.users().lookupUsers(handle).get(0);
+                            twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.getMiniProfileImageURLHttps());
+                            twitterUser.persist();
+                            System.out.println(String.format("Loaded %s (%s) from %s", twitterUser.fullName, twitterUser.handle,
+                                twitterUser.location));
+
+                            //TODO Setup reactive messaging config for Kafka
+                            //                twitterUserEmitter.send(twitterUser);
+                        } catch (TwitterException ignored) {
+                        }
+                    }
+                }
+            }
+        }
+
+        return "speakers loaded";
+    }
+
+    @GET
+    @Path("words")
+    @Produces("image/png")
+    public Response cloud() throws FileNotFoundException {
+        final Dimension dimension = new Dimension(500, 500);
+        final WordCloud wordCloud = new WordCloud(dimension, CollisionMode.PIXEL_PERFECT);
+        wordCloud.setPadding(2);
+        wordCloud.setBackground(new RectangleBackground(dimension));
+
+        List<TwitterUser> list = TwitterUser.listAll();
+        Map<String, java.util.List<TwitterUser>> collect = list.stream().collect(Collectors.groupingBy(t -> t.location));
+        List<WordFrequency> frequencies = collect.entrySet().stream()
+                                                 .map(e -> new WordFrequency(e.getKey(), e.getValue().size()))
+                                                 .collect(Collectors.toList());
+
+        wordCloud.build(frequencies);
+
+        final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        wordCloud.writeToStreamAsPNG(byteArrayOutputStream);
+
+        ResponseBuilder response = Response.ok(byteArrayOutputStream.toByteArray());
+        response.header("Content-Disposition",
+            "attachment; filename=wordcloud.png");
+        return response.build();
+
+    }
+
 }
