@@ -1,20 +1,14 @@
 package org.redhat;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntity;
-
-public class TwitterUser extends PanacheEntity {
+public class TwitterUser {
     public String handle;
     public String fullName;
     public String location;
-    private String miniProfileImageUrl;
+    public String miniProfileImageUrl;
 
-    public TwitterUser() {
-    }
-
-    public TwitterUser(String handle, String fullName, String location, String miniProfileImageUrl) {
+    public TwitterUser(final String handle, final String fullName, final String location) {
         this.handle = handle;
         this.fullName = fullName;
         this.location = location;
-        this.miniProfileImageUrl = miniProfileImageUrl;
     }
 }
