@@ -40,23 +40,10 @@
             });
 
         var geocoder = new google.maps.Geocoder;
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function() {
-            if (xhttp.readyState === 4 && xhttp.status === 200) {
-                // Typical action to be performed when the document is ready:
-                var users = JSON.parse(xhttp.responseText);
-
-                for (var i = 0; i < users.length; i++) {
-                    (function (i) {
-                        setTimeout(function () {
-                            geocodeAddress(geocoder, map, users[i]);
-                        }, (500 * (i + 1)));
-                    })(i);
-                }
-            }
+        var source = new EventSource("/twitter/users/");
+        source.onmessage = function (event) {
+            geocodeAddress(geocoder, map, JSON.parse(event.data))
         };
-        xhttp.open("GET", "http://localhost:8080/twitter/users", true);
-        xhttp.send(null);
     }
 
     function geocodeAddress(geocoder, map, user) {
@@ -100,6 +87,5 @@
     }
 
 </script>
-<img src="index.html" height="">
 </body>
 </html>

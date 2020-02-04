@@ -16,4 +16,13 @@ public class TwitterUser {
         this.location = location;
         this.miniProfileImageUrl = miniProfileImageUrl;
     }
+
+    @Override
+    public String toString() {
+        return "TwitterUser{" +
+               "handle='" + handle + '\'' +
+               ", fullName='" + fullName + '\'' +
+               ", location='" + location + '\'' +
+               '}';
+    }
 }
