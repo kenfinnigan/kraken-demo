@@ -16,9 +16,9 @@ public class TwitterUserResource {
     public Response users() {
         final List<TwitterUser> users =
             Stream.of(
-                new TwitterUser("radcortez", "Roberto Cortez", "Coimbra"),
-                new TwitterUser("evanchooly", "Justin Lee", "New York"),
-                new TwitterUser("kenfinnigan", "Ken Finnigan", "Pembroke"))
+                new TwitterUser("radcortez", "Roberto Cortez", "Coimbra", "https://pbs.twimg.com/profile_images/2699653917/2ff28994483f71d4487e76a0e30ebbbd_400x400.jpeg"),
+                new TwitterUser("evanchooly", "Justin Lee", "New York", "https://pbs.twimg.com/profile_images/687965772044357632/6QKmYlhK_400x400.jpg"),
+                new TwitterUser("kenfinnigan", "Ken Finnigan", "Pembroke", "https://pbs.twimg.com/profile_images/606910050255257600/BH5u3BVD_400x400.jpg"))
                   .collect(Collectors.toList());
 
         return Response.ok(users).build();
