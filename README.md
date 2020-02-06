@@ -8,10 +8,16 @@ If you want to learn more about Quarkus, please visit its website: https://quark
 
 ```
 docker run --ulimit memlock=-1:-1 -it --rm=true --memory-swappiness=0 \
-           --name postgres-quarkus-hibernate -e POSTGRES_USER=quarkus_test \
+           --name quarkus_test -e POSTGRES_USER=quarkus_test \
            -e POSTGRES_PASSWORD=quarkus_test -e POSTGRES_DB=quarkus_test \
            -p 5432:5432 postgres:10.5
 ```
+
+## Running Kafka Cluster
+
+As we're using Kafka as the message backbone for the application,
+we need a cluster to process the messages.
+Starting a development cluster can be done by running `docker-compose up` in the root directory.
 
 ## Running the application in dev mode
 

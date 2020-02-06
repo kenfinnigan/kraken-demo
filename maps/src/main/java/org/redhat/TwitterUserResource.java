@@ -13,10 +13,9 @@ import javax.ws.rs.core.MediaType;
 
 @ApplicationScoped
 @Path("/twitter/users")
-@Produces(MediaType.APPLICATION_JSON)
 public class TwitterUserResource {
     @Inject
-    @Channel("twitter-users")
+    @Channel("twitter")
     Publisher<TwitterUser> users;
 
     @GET

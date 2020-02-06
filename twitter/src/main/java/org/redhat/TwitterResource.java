@@ -4,8 +4,8 @@ import com.kennycason.kumo.CollisionMode;
 import com.kennycason.kumo.WordCloud;
 import com.kennycason.kumo.WordFrequency;
 import com.kennycason.kumo.bg.RectangleBackground;
-import io.reactivex.Emitter;
 import io.smallrye.reactive.messaging.annotations.Channel;
+import io.smallrye.reactive.messaging.annotations.Emitter;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
@@ -42,9 +42,9 @@ public class TwitterResource {
 
     Twitter twitter;
 
-//    @Inject
-//    @Channel("twitter")
-//    Emitter<TwitterUser> twitterUserEmitter;
+    @Inject
+    @Channel("twitter")
+    Emitter<TwitterUser> twitterUserEmitter;
 
     @PostConstruct
     public void setup() {
@@ -68,8 +68,7 @@ public class TwitterResource {
                 User user = twitter.users().lookupUsers(handle).get(0);
                 twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.getMiniProfileImageURLHttps());
                 twitterUser.persist();
-                //TODO Setup reactive messaging config for Kafka
-                //                twitterUserEmitter.send(twitterUser);
+                twitterUserEmitter.send(twitterUser);
             } catch (TwitterException e) {
                 return "No record found by that name.";
             }
@@ -98,8 +97,7 @@ public class TwitterResource {
                             System.out.println(String.format("Loaded %s (%s) from %s", twitterUser.fullName, twitterUser.handle,
                                 twitterUser.location));
 
-                            //TODO Setup reactive messaging config for Kafka
-                            //                twitterUserEmitter.send(twitterUser);
+                            twitterUserEmitter.send(twitterUser);
                         } catch (TwitterException ignored) {
                         }
                     }
