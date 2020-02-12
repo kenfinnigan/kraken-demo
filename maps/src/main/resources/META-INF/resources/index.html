@@ -41,8 +41,13 @@
 
         var geocoder = new google.maps.Geocoder;
         var source = new EventSource("/twitter/users/");
+        var i = 0;
         source.onmessage = function (event) {
-            geocodeAddress(geocoder, map, JSON.parse(event.data))
+            (function (i) {
+                setTimeout(function () {
+                    geocodeAddress(geocoder, map, JSON.parse(event.data))
+                }, (500 * i));
+            })(i++);
         };
     }
 
@@ -68,13 +73,7 @@
                     marker.addListener('mouseout', function() {
                         infowindow.close();
                     });
-
-
-                } else {
-                    window.alert('No results found');
                 }
-            } else {
-                window.alert('Geocoder failed due to: ' + status);
             }
         });
     }
@@ -83,6 +82,7 @@
         return '' +
             '@' + user.handle + '<br>' +
             user.fullName + '<br>' +
+            user.location + '<br>' +
             '<img src="' + user.miniProfileImageUrl + '" width="100px" height="100px">';
     }
 
