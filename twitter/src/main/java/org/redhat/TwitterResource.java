@@ -92,7 +92,7 @@ public class TwitterResource {
                     if (twitterUser == null) {
                         try {
                             User user = twitter.users().lookupUsers(handle).get(0);
-                            twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.getMiniProfileImageURLHttps());
+                            twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.get400x400ProfileImageURL());
                             twitterUser.persist();
                             System.out.println(String.format("Loaded %s (%s) from %s", twitterUser.fullName, twitterUser.handle,
                                 twitterUser.location));
