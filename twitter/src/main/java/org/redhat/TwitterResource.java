@@ -4,6 +4,7 @@ import com.kennycason.kumo.CollisionMode;
 import com.kennycason.kumo.WordCloud;
 import com.kennycason.kumo.WordFrequency;
 import com.kennycason.kumo.bg.RectangleBackground;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.smallrye.reactive.messaging.annotations.Channel;
 import io.smallrye.reactive.messaging.annotations.Emitter;
 import twitter4j.Twitter;
@@ -77,7 +78,7 @@ public class TwitterResource {
     }
 
     @GET
-    @Path("speakers")
+    @Path("load")
     @Transactional
     @Produces(MediaType.TEXT_PLAIN)
     public String loadSpeakers() throws IOException {
@@ -106,6 +107,17 @@ public class TwitterResource {
         }
 
         return "speakers loaded";
+    }
+
+    @GET
+    @Path("speakers")
+    @Transactional
+    @Produces(MediaType.TEXT_PLAIN)
+    public String speakerEvents() {
+        TwitterUser.<TwitterUser>listAll()
+            .forEach(u -> twitterUserEmitter.send(u));
+
+        return "speaker events fired";
     }
 
     @GET
