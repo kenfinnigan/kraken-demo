@@ -83,7 +83,8 @@ public class TwitterResource {
     @Produces(MediaType.TEXT_PLAIN)
     public String loadSpeakers() throws IOException {
         try (InputStream stream = getClass().getResourceAsStream("/speakers.csv");
-             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream));) {
+             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream))) {
+            TwitterUser.deleteAll();
             while (bufferedReader.ready()) {
                 String line = bufferedReader.readLine();
                 String[] values = line.split(",");
