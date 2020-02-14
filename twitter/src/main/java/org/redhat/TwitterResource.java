@@ -67,7 +67,7 @@ public class TwitterResource {
         if (twitterUser == null) {
             try {
                 User user = twitter.users().lookupUsers(handle).get(0);
-                twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.getMiniProfileImageURLHttps());
+                twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.get400x400ProfileImageURLHttps());
                 twitterUser.persist();
                 twitterUserEmitter.send(twitterUser);
             } catch (TwitterException e) {
