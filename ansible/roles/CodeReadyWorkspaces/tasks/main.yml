@@ -1,0 +1,75 @@
+- name: Provision CodeReady Workspaces
+  block:
+    - name: Log into OpenShift
+      k8s_auth:
+        username: "{{ ocp_admin }}"
+        password: "{{ ocp_admin_pwd }}"
+      register: k8s_auth_results
+
+    - name: Check if new project request template exists
+      k8s_info:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        api_version: config.openshift.io/v1
+        kind: Project
+        name: cluster
+      register: demo_project_request_template_result
+
+    - name: Set whether to override project request template
+      set_fact:
+        create_project_request_template: "{{ not(demo_project_request_template_result is not undefined and demo_project_request_template_result.resources|length == 1 and demo_project_request_template_result.resources[0].spec is not undefined and demo_project_request_template_result.resources[0].spec.projectRequestTemplate is not undefined and demo_project_request_template_result.resources[0].spec.projectRequestTemplate.name is not undefined and demo_project_request_template_result.resources[0].spec.projectRequestTemplate.name == 'demo-project-request')|bool }}"
+
+    - name: Create new project request template
+      include: ../../common/runOcShell.yml
+      vars:
+        oc_command: "oc create -f ./roles/CodeReadyWorkspaces/objects/demo-project-request-template.yml -n openshift-config"
+      when: create_project_request_template
+
+    - name: Apply the new project request template
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        definition: "{{ lookup('template', '../objects/demo-project-request.yml') }}"
+      when: create_project_request_template
+
+    - name: "Create {{ proj_nm_infra }} project if it doesn't already exist"
+      include: ../../common/createProject.yml
+      vars:
+        proj_nm: "{{ proj_nm_infra }}"
+
+    - name: Install CodeReady Workspaces Operator
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_infra }}"
+        definition: "{{ lookup('template', '../objects/codeready-workspaces-operator.yml') }}"
+
+    - name: Wait for CodeReady Workspaces Operator to spin up
+      k8s_info:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_infra }}"
+        api_version: apps/v1
+        kind: Deployment
+        name: codeready-operator
+      register: codeready_operator_deployment
+      until: codeready_operator_deployment.resources is defined and codeready_operator_deployment.resources|length == 1 and codeready_operator_deployment.resources[0].status.readyReplicas is defined and codeready_operator_deployment.resources[0].status.readyReplicas == 1 and codeready_operator_deployment.resources[0].status.availableReplicas is defined and codeready_operator_deployment.resources[0].status.availableReplicas == 1
+      retries: 50
+      delay: 10
+
+    - name: Get Cluster Wildcard domain
+      include: ../../common/getClusterWildcardDomain.yml
+
+    - name: Install CodeReady Workspaces
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_infra }}"
+        definition: "{{ lookup('template', '../objects/codeready-workspaces.yml') }}"
+
+  always:
+    - name: If OpenShift login succeeded try to log out
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"

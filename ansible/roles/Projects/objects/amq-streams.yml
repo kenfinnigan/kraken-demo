@@ -1,0 +1,33 @@
+kind: Kafka
+apiVersion: kafka.strimzi.io/v1beta1
+metadata:
+  name: twitter
+  labels:
+    app.kubernetes.io/part-of: kraken
+    app: kraken
+spec:
+  kafka:
+    replicas: 3
+    listeners:
+      plain: {}
+      tls: {}
+    config:
+      auto.create.topics.enable: "true"
+      num.partitions: 1
+      offsets.topic.replication.factor: 3
+      default.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+    storage:
+      type: persistent-claim
+      size: 100Gi
+      deleteClaim: true
+  zookeeper:
+    replicas: 3
+    storage:
+      type: persistent-claim
+      size: 100Gi
+      deleteClaim: true
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}

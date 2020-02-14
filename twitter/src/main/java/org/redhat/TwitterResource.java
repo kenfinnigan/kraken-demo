@@ -1,17 +1,18 @@
 package org.redhat;
 
-import com.kennycason.kumo.CollisionMode;
-import com.kennycason.kumo.WordCloud;
-import com.kennycason.kumo.WordFrequency;
-import com.kennycason.kumo.bg.RectangleBackground;
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.smallrye.reactive.messaging.annotations.Channel;
-import io.smallrye.reactive.messaging.annotations.Emitter;
-import twitter4j.Twitter;
-import twitter4j.TwitterException;
-import twitter4j.TwitterFactory;
-import twitter4j.User;
-import twitter4j.conf.ConfigurationBuilder;
+import java.awt.Dimension;
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
@@ -24,16 +25,19 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
-import java.awt.Dimension;
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+
+import com.kennycason.kumo.CollisionMode;
+import com.kennycason.kumo.WordCloud;
+import com.kennycason.kumo.WordFrequency;
+import com.kennycason.kumo.bg.RectangleBackground;
+
+import io.smallrye.reactive.messaging.annotations.Channel;
+import io.smallrye.reactive.messaging.annotations.Emitter;
+import twitter4j.Twitter;
+import twitter4j.TwitterException;
+import twitter4j.TwitterFactory;
+import twitter4j.User;
+import twitter4j.conf.ConfigurationBuilder;
 
 @Path("/twitter")
 public class TwitterResource {
@@ -67,7 +71,7 @@ public class TwitterResource {
         if (twitterUser == null) {
             try {
                 User user = twitter.users().lookupUsers(handle).get(0);
-                twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.getMiniProfileImageURLHttps());
+                twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.get400x400ProfileImageURLHttps());
                 twitterUser.persist();
                 twitterUserEmitter.send(twitterUser);
             } catch (TwitterException e) {
@@ -81,30 +85,32 @@ public class TwitterResource {
     @Path("load")
     @Transactional
     @Produces(MediaType.TEXT_PLAIN)
-    public String loadSpeakers() throws IOException {
-        try (InputStream stream = getClass().getResourceAsStream("/speakers.csv");
-             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream))) {
-            TwitterUser.deleteAll();
-            while (bufferedReader.ready()) {
-                String line = bufferedReader.readLine();
-                String[] values = line.split(",");
-                if (values.length > 2) {
-                    String handle = values[2];
-                    TwitterUser twitterUser = TwitterUser.find("handle", handle).firstResult();
-                    if (twitterUser == null) {
-                        try {
-                            User user = twitter.users().lookupUsers(handle).get(0);
-                            twitterUser = new TwitterUser(handle, user.getName(), user.getLocation(), user.get400x400ProfileImageURL());
-                            twitterUser.persist();
-                            System.out.println(String.format("Loaded %s (%s) from %s", twitterUser.fullName, twitterUser.handle,
-                                twitterUser.location));
+    public String loadSpeakers() throws IOException, URISyntaxException {
+        URI speakersCsvUri = getClass().getResource("/speakers.csv").toURI();
+        TwitterUser.deleteAll();
 
-                            twitterUserEmitter.send(twitterUser);
-                        } catch (TwitterException ignored) {
-                        }
-                    }
-                }
-            }
+        try (Stream<String> stream = Files.lines(FileSystems.getDefault().getPath(speakersCsvUri.getRawPath()))) {
+            stream
+                .map(line -> line.split(","))
+                .filter(Objects::nonNull)
+                .filter(lineArray -> lineArray.length > 2)
+                .map(lineArray -> lineArray[2])
+                .distinct()
+                .map(handle -> getUser(TwitterUser.find("handle", handle).firstResult(), handle))
+                .filter(Objects::nonNull)
+                .map(user -> new TwitterUser(user.getScreenName(), user.getName(), user.getLocation(), user.get400x400ProfileImageURL()))
+                .forEach(twitterUser -> {
+                    twitterUser.persist();
+                    System.out.println(
+                        String.format(
+                            "Loaded %s (%s) from %s",
+                            twitterUser.fullName,
+                            twitterUser.handle,
+                            twitterUser.location
+                        )
+                    );
+                    this.twitterUserEmitter.send(twitterUser);
+                });
         }
 
         return "speakers loaded";
@@ -116,7 +122,7 @@ public class TwitterResource {
     @Produces(MediaType.TEXT_PLAIN)
     public String speakerEvents() {
         TwitterUser.<TwitterUser>listAll()
-            .forEach(u -> twitterUserEmitter.send(u));
+            .forEach(this.twitterUserEmitter::send);
 
         return "speaker events fired";
     }
@@ -148,4 +154,18 @@ public class TwitterResource {
 
     }
 
+    private User getUser(TwitterUser twitterUser, String handle) {
+        User user = null;
+
+        if (twitterUser == null) {
+            try {
+                user = this.twitter.users().lookupUsers(handle).get(0);
+            }
+            catch (TwitterException ignored) {
+
+            }
+        }
+
+        return user;
+    }
 }
