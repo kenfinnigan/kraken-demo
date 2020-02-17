@@ -1,0 +1,18 @@
+- hosts: localhost
+  gather_facts: no
+  module_defaults:
+    group/k8s:
+      host: "{{ ocp_api_url }}"
+      validate_certs: no
+  vars:
+    ocp_admin: opentlc-mgr
+    proj_nm_infra: infra
+    proj_nm_prod: prod
+    ocp_proj_user: user1
+  roles:
+    - role: CodeReadyWorkspaces
+      tags:
+        - crw
+    - role: Projects
+      tags:
+        - projects
