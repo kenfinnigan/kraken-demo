@@ -1,0 +1,9 @@
+ocp_proj_user_pwd: openshift
+proj_nm_operators: openshift-operators
+app_nm_twitter: kraken-twitter
+app_nm_maps: kraken-maps
+context_dir_twitter: /twitter
+context_dir_maps: /maps
+source_github_url: https://github.com/edeandrea/kraken-demo
+source_github_branch: automated-provisioning
+twitter_kafka_bootstrap_server: twitter-kafka-bootstrap:9092

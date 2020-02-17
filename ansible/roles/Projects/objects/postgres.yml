@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: kraken-db
+parameters:
+  - name: DATABASE_NAME
+    value: quarkus_test
+    description: The name of the database to use
+    required: true
+  - name: DATABASE_USERNAME
+    value: quarkus_test
+    generate: expression
+    from: "[a-zA-Z]{32}"
+    description: The database username
+  - name: DATABASE_PASSWORD
+    value: quarkus_test
+    generate: expression
+    from: "[a-zA-Z0-9]{32}"
+    description: The database password
+  - name: DATABASE_ADMIN_PASSWORD
+    value: quarkus_test
+    generate: expression
+    from: "[a-zA-Z0-9]{32}"
+    description: The database admin password
+objects:
+  - kind: Secret
+    apiVersion: v1
+    metadata:
+      name: kraken-db
+      labels:
+        application: kraken-twitter
+      annotations:
+        template.openshift.io/expose-database_name: '{.data[''database-name'']}'
+        template.openshift.io/expose-password: '{.data[''database-password'']}'
+        template.openshift.io/expose-username: '{.data[''database-user'']}'
+        template.openshift.io/expose-admin_password: '{.data["database-admin-password"]}'
+    stringData:
+      database-name: ${DATABASE_NAME}
+      database-password: ${DATABASE_PASSWORD}
+      database-user: ${DATABASE_USERNAME}
+      database-admin-password: ${DATABASE_ADMIN_PASSWORD}
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: kraken-db
+      labels:
+        template: postgresql-ephemeral-template
+        application: kraken-twitter
+        app: kraken
+        app.kubernetes.io/part-of: kraken
+        app.openshift.io/runtime: postgresql
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: "true"
+    spec:
+      replicas: 1
+      strategy:
+        type: Recreate
+      selector:
+        name: kraken-db
+      template:
+        metadata:
+          name: kraken-db
+          labels:
+            name: kraken-db
+        spec:
+          containers:
+            - env:
+                - name: POSTGRESQL_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: kraken-db
+                      key: database-user
+                - name: POSTGRESQL_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: kraken-db
+                      key: database-password
+                - name: POSTGRESQL_DATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: kraken-db
+                      key: database-name
+                - name: POSTGRESQL_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: kraken-db
+                      key: database-admin-password
+              name: kraken-db
+              image: registry.redhat.io/rhel8/postgresql-12:latest
+              imagePullPolicy: IfNotPresent
+              ports:
+                - containerPort: 5432
+                  protocol: TCP
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                exec:
+                  command:
+                    - /bin/sh
+                    - -i
+                    - -c
+                    - pg_isready -h 127.0.0.1 -p 5432
+                timeoutSeconds: 1
+              readinessProbe:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -i
+                    - -c
+                    - psql -h 127.0.0.1 -U $POSTGRESQL_USER -q -d $POSTGRESQL_DATABASE -c 'SELECT 1'
+                failureThreshold: 3
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 1
+              resources:
+                limits:
+                  memory: 512Mi
+              securityContext:
+                privileged: false
+      triggers:
+        - type: ConfigChange
+      volumes:
+        - name: kraken-db-data
+          emptyDir: {}
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: kraken-db
+      labels:
+        template: postgresql-ephemeral-template
+        application: kraken-twitter
+    spec:
+      ports:
+        - name: postgres
+          port: 5432
+          protocol: TCP
+          targetPort: 5432
+      selector:
+        name: kraken-db
