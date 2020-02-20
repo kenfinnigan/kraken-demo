@@ -4,9 +4,10 @@ import java.awt.Dimension;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -85,9 +86,10 @@ public class TwitterResource {
     @Transactional
     @Produces(MediaType.TEXT_PLAIN)
     public String loadSpeakers() throws IOException, URISyntaxException {
+        URI speakersCsvUri = getClass().getResource("/speakers.csv").toURI();
         TwitterUser.deleteAll();
 
-        try (Stream<String> stream = Files.lines(Paths.get(getClass().getResource("/speakers.csv").toURI()))) {
+        try (Stream<String> stream = Files.lines(FileSystems.getDefault().getPath(speakersCsvUri.getRawPath()))) {
             stream
                 .map(line -> line.split(","))
                 .filter(Objects::nonNull)
