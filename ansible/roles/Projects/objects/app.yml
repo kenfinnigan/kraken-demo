@@ -1,0 +1,129 @@
+kind: ImageStream
+apiVersion: v1
+metadata:
+  name: "{{ app_name }}"
+  labels:
+    app: "{{ app_name }}"
+spec:
+  tags:
+    - name: latest
+---
+kind: ImageStream
+apiVersion: v1
+metadata:
+  name: ubi-quarkus-native-s2i
+spec:
+  tags:
+    - name: 19.3.1-java8
+      from:
+        kind: DockerImage
+        name: 'quay.io/quarkus/ubi-quarkus-native-s2i:19.3.1-java8'
+---
+kind: BuildConfig
+apiVersion: build.openshift.io/v1
+metadata:
+  name: "{{ app_name }}"
+  labels:
+    app: "{{ app_name }}"
+spec:
+  runPolicy: Serial
+  output:
+    to:
+      kind: ImageStreamTag
+      name: "{{ app_name }}:latest"
+  resources:
+    limits:
+      cpu: '4'
+      memory: 10Gi
+    requests:
+      cpu: '1'
+      memory: 4Gi
+  strategy:
+    type: Source
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        name: 'ubi-quarkus-native-s2i:19.3.1-java8'
+  source:
+    type: Git
+    contextDir: "{{ context_dir }}"
+    git:
+      uri: "{{ source_github_url }}"
+      ref: "{{ source_github_branch }}"
+  triggers:
+    - type: ConfigChange
+---
+kind: DeploymentConfig
+apiVersion: v1
+metadata:
+  labels:
+    app: "{{ app_name }}"
+    app.kubernetes.io/part-of: kraken
+    app.openshift.io/runtime: java
+    app.openshift.io/runtime-version: '8'
+  name: "{{ app_name }}"
+  annotations:
+    app.openshift.io/connects-to: twitter-kafka
+    app.openshift.io/vcs-ref: "{{ source_github_branch }}"
+    app.openshift.io/vcs-uri: "{{ source_github_url }}"
+spec:
+  replicas: 1
+  selector:
+    deploymentconfig: "{{ app_name }}"
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: "{{ app_name }}"
+        deploymentconfig: "{{ app_name }}"
+    spec:
+      containers:
+        - image: "{{ app_name }}:latest"
+          imagePullPolicy: Always
+          name: "{{ app_name }}"
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: QUARKUS_HTTP_PORT
+              value: "8080"
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - "{{ app_name }}"
+        from:
+          kind: ImageStreamTag
+          name: "{{ app_name }}:latest"
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: "{{ app_name }}"
+  labels:
+    app: "{{ app_name }}"
+spec:
+  ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    deploymentconfig: "{{ app_name }}"
+---
+kind: Route
+apiVersion: v1
+metadata:
+  labels:
+    app: "{{ app_name }}"
+  name: "{{ app_name }}"
+spec:
+  port:
+    targetPort: 8080-tcp
+  to:
+    kind: Service
+    name: "{{ app_name }}"
+    weight: 100

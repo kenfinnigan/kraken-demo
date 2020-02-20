@@ -1,0 +1,213 @@
+- name: Provision User projects
+  block:
+    - fail: msg="The variable 'twitter_api_key' has not been defined"
+      when: twitter_api_key is undefined
+
+    - fail: msg="The variable 'twitter_api_secret' has not been defined"
+      when: twitter_api_secret is undefined
+
+    - fail: msg="The variable 'twitter_access_token' has not been defined"
+      when: twitter_access_token is undefined
+
+    - fail: msg="The variable 'twitter_access_secret' has not been defined"
+      when: twitter_access_secret is undefined
+
+    - fail: msg="The variable 'google_maps_api_key' has not been defined"
+      when: google_maps_api_key is undefined
+
+    - name: Log into OpenShift as admin
+      k8s_auth:
+        username: "{{ ocp_admin }}"
+        password: "{{ ocp_admin_pwd }}"
+      register: k8s_auth_results
+
+    - name: Install AMQ Streams Operator
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_operators }}"
+        definition: "{{ lookup('template', '../objects/amq-streams-operator.yml') }}"
+
+    - name: Wait for AMQ Streams operator to start
+      k8s_info:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_operators }}"
+        api_version: v1
+        kind: Pod
+        label_selectors:
+          - name = amq-streams-cluster-operator
+      register: amq_streams_cluster_operator_pod
+      until: amq_streams_cluster_operator_pod.resources is defined and amq_streams_cluster_operator_pod.resources|length == 1 and amq_streams_cluster_operator_pod.resources[0].status.containerStatuses is defined and amq_streams_cluster_operator_pod.resources[0].status.containerStatuses|length == 1 and amq_streams_cluster_operator_pod.resources[0].status.containerStatuses[0] is defined and amq_streams_cluster_operator_pod.resources[0].status.containerStatuses[0].ready == true
+      retries: 50
+      delay: 10
+
+    - name: Log out of OpenShift admin user
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+    - name: Log into OpenShift as project user
+      k8s_auth:
+        username: "{{ ocp_proj_user }}"
+        password: "{{ ocp_proj_user_pwd }}"
+      register: k8s_auth_results
+
+    - name: "Create {{ proj_nm_prod }} project if it doesn't already exist"
+      include: ../../common/createProject.yml
+      vars:
+        proj_nm: "{{ proj_nm_prod }}"
+
+    - name: Check if Postgres is already installed
+      k8s_info:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_prod }}"
+        kind: DeploymentConfig
+        api_version: apps.openshift.io/v1
+        name: kraken-db
+      register: kraken_db_dc
+
+    - name: Install Kraken DB
+      include: ../../common/processTemplate.yml
+      vars:
+        proj_nm: "{{ proj_nm_prod }}"
+        template_filename: "{{ playbook_dir }}/roles/Projects/objects/postgres.yml"
+      when: kraken_db_dc.resources|length == 0
+
+    - name: Install AMQ Streams
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_prod }}"
+        definition: "{{ lookup('template', '../objects/amq-streams.yml') }}"
+
+    - name: Install Kafdrop
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_prod }}"
+        definition: "{{ lookup('template', '../objects/kafdrop.yml') }}"
+
+    - name: Install Twitter secret
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_prod }}"
+        definition: "{{ lookup('template', '../objects/twitter-secret.yml') }}"
+
+    - name: Install Twitter app
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_prod }}"
+        definition: "{{ lookup('template', '../objects/app.yml') }}"
+      vars:
+        app_name: "{{ app_nm_twitter }}"
+        context_dir: "{{ context_dir_twitter }}"
+
+    - name: Update twitter app
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        namespace: "{{ proj_nm_prod }}"
+        validate_certs: no
+        name: "{{ app_nm_twitter }}"
+        definition:
+          kind: DeploymentConfig
+          apiVersion: apps.openshift.io/v1
+          metadata:
+            annotations:
+              app.openshift.io/connects-to: "twitter-kafka,kraken-db"
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: "{{ app_nm_twitter }}"
+                    env:
+                      - name: DB_NAME
+                        valueFrom:
+                          secretKeyRef:
+                            name: kraken-db
+                            key: database-name
+                      - name: QUARKUS_DATASOURCE_USERNAME
+                        valueFrom:
+                          secretKeyRef:
+                            name: kraken-db
+                            key: database-user
+                      - name: QUARKUS_DATASOURCE_PASSWORD
+                        valueFrom:
+                          secretKeyRef:
+                            name: kraken-db
+                            key: database-password
+                      - name: QUARKUS_DATASOURCE_URL
+                        value: jdbc:postgresql://kraken-db/$(DB_NAME)
+                      - name: MP_MESSAGING_OUTGOING_TWITTER_BOOTSTRAP_SERVERS
+                        value: "{{ twitter_kafka_bootstrap_server }}"
+                      - name: KRAKEN_API_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: twitter-secret
+                            key: api-key
+                      - name: KRAKEN_API_SECRET
+                        valueFrom:
+                          secretKeyRef:
+                            name: twitter-secret
+                            key: api-secret
+                      - name: KRAKEN_ACCESS_TOKEN
+                        valueFrom:
+                          secretKeyRef:
+                            name: twitter-secret
+                            key: access-token
+                      - name: KRAKEN_ACCESS_SECRET
+                        valueFrom:
+                          secretKeyRef:
+                            name: twitter-secret
+                            key: access-secret
+
+    - name: Install Maps secret
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_prod }}"
+        definition: "{{ lookup('template', '../objects/google-maps-secret.yml') }}"
+
+    - name: Install Maps app
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+        namespace: "{{ proj_nm_prod }}"
+        definition: "{{ lookup('template', '../objects/app.yml') }}"
+      vars:
+        app_name: "{{ app_nm_maps }}"
+        context_dir: "{{ context_dir_maps }}"
+
+    - name: Update maps app
+      k8s:
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        namespace: "{{ proj_nm_prod }}"
+        validate_certs: no
+        name: "{{ app_nm_maps }}"
+        definition:
+          kind: DeploymentConfig
+          apiVersion: apps.openshift.io/v1
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: "{{ app_nm_maps }}"
+                    env:
+                      - name: MP_MESSAGING_INCOMING_TWITTER_BOOTSTRAP_SERVERS
+                        value: "{{ twitter_kafka_bootstrap_server }}"
+                      - name: GOOGLE_MAPS_APIKEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: google-maps-secret
+                            key: api-key
+
+  always:
+    - name: If OpenShift login succeeded try to log out
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"

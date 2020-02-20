@@ -1,0 +1,4 @@
+- name: Process template {{ template_filename }}
+  include: ./runOcShell.yml
+  vars:
+    oc_command: "oc project {{ proj_nm }} && oc process -f {{ template_filename }} | oc create -f -"
