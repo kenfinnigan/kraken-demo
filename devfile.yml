@@ -1,0 +1,72 @@
+apiVersion: 1.0.0
+metadata:
+  name: kraken-demo
+projects:
+  - name: kraken-demo
+    source:
+      location: 'https://github.com/edeandrea/kraken-demo'
+      type: git
+      branch: master
+components:
+  - id: redhat/java8/latest
+    type: chePlugin
+  - id: redhat/vscode-yaml/latest
+    type: chePlugin
+  - id: redhat/vscode-xml/latest
+    type: chePlugin
+  - id: redhat/vscode-openshift-connector/latest
+    type: chePlugin
+  - mountSources: true
+    endpoints:
+      - name: twitter-local
+        port: 8100
+      - name: maps-local
+        port: 8200
+    memoryLimit: 2Gi
+    type: dockerimage
+    volumes:
+      - name: m2
+        containerPath: /home/jboss/.m2
+    alias: dev
+    image: 'registry.redhat.io/codeready-workspaces/stacks-java-rhel8:2.0'
+commands:
+  - name: Maps - dev mode
+    actions:
+      - workdir: '${CHE_PROJECTS_ROOT}/kraken-demo/maps'
+        type: exec
+        command: 'mvn clean compile quarkus:dev'
+        component: dev
+  - name: Maps - package
+    actions:
+      - workdir: '${CHE_PROJECTS_ROOT}/kraken-demo/maps'
+        type: exec
+        command: mvn clean package
+        component: dev
+  - name: Twitter - dev mode
+    actions:
+      - workdir: '${CHE_PROJECTS_ROOT}/kraken-demo/twitter'
+        type: exec
+        command: 'mvn clean compile quarkus:dev'
+        component: dev
+  - name: Twitter - package
+    actions:
+      - workdir: '${CHE_PROJECTS_ROOT}/kraken-demo/twitter'
+        type: exec
+        command: mvn clean package
+        component: dev
+  - name: Remote debug
+    actions:
+      - referenceContent: |
+          {
+            "version": "0.2.0",
+            "configurations": [
+              {
+                "type": "java",
+                "request": "attach",
+                "name": "Attach to Dev Mode",
+                "hostName": "localhost",
+                "port": 5005
+              }
+            ]
+          }
+        type: vscode-launch

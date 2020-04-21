@@ -42,4 +42,7 @@ Or you can use Docker to build the native executable using: `./mvnw package -Pna
 
 You can then execute your binary: `./target/kraken-1.0.0-SNAPSHOT-runner`
 
-If you want to learn more about building native executables, please consult https://quarkus.io/guides/building-native-image-guide .
+If you want to learn more about building native executables, please consult https://quarkus.io/guides/building-native-image-guide.
+
+## Running on OpenShift
+There is an [Ansible playbook](ansible) available if you would like to provision this on OpenShift. [See the README](ansible/README.md) in the [ansible](ansible) subdirectory for more details.
