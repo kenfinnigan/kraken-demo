@@ -8,6 +8,7 @@ spec:
     cheFlavor: codeready
     tlsSupport: true
     selfSignedCert: false
+    workspaceNamespaceDefault: "workspace-<username>-<workspaceid>"
     customCheProperties:
       CHE_LIMITS_WORKSPACE_IDLE_TIMEOUT: "9000000"
       CHE_WORKSPACE_JAVA__OPTIONS: "-XX:+UseParallelGC -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=20 -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xms512m -Djava.security.egd=file:/dev/./urandom"
